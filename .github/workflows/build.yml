@@ -1,0 +1,45 @@
+name: Build DECtalk x64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout DECtalk
+        uses: actions/checkout@v4
+        with:
+          repository: dectalk/dectalk
+          ref: develop
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cd src
+          msbuild DECtalk.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: Find outputs
+        shell: powershell
+        run: |
+          Get-ChildItem -Recurse -Include *.dll,*.lib,*.h |
+            Select-Object FullName
+
+      - name: Package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact
+
+          Get-ChildItem -Recurse -Filter *.dll |
+            Copy-Item -Destination artifact -Force
+
+          Get-ChildItem -Recurse -Filter *.h |
+            Copy-Item -Destination artifact -Force
+
+      - name: Upload DECtalk
+        uses: actions/upload-artifact@v4
+        with:
+          name: dectalk-x64
+          path: artifact
