@@ -1,10 +1,10 @@
-name: Build DECtalk
+name: Build DECtalk x64
 
 on:
   workflow_dispatch:
 
 jobs:
-  inspect-and-build:
+  build:
     runs-on: windows-2022
 
     steps:
@@ -14,81 +14,52 @@ jobs:
           repository: dectalk/dectalk
           ref: develop
 
-      - name: Inspect solution configurations
-        shell: powershell
-        run: |
-          Write-Host "===== SOLUTION CONFIGURATIONS ====="
-          Select-String -Path src\DECtalk.sln `
-            -Pattern "SolutionConfigurationPlatforms|ProjectConfigurationPlatforms|Debug|Release|Win32|x64" `
-            -Context 1,1
-
-      - name: Inspect Visual Studio projects
-        shell: powershell
-        run: |
-          Write-Host "===== PROJECT FILES ====="
-
-          Get-ChildItem -Recurse -Include *.vcxproj,*.vcproj |
-            ForEach-Object {
-              Write-Host ""
-              Write-Host "========================================"
-              Write-Host $_.FullName
-              Write-Host "========================================"
-
-              Select-String -Path $_.FullName `
-                -Pattern "PlatformToolset|PlatformTarget|ConfigurationType|Win32|x64"
-            }
-
-      - name: Initialize MSVC
+      - name: Build DECtalk x64
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cl
-          msbuild -version
 
-      - name: List solution projects
-        shell: powershell
-        run: |
-          Write-Host "===== PROJECTS IN SOLUTION ====="
-          Select-String -Path src\DECtalk.sln `
-            -Pattern 'Project\('
-
-      - name: Build default configuration
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           cd src
 
           msbuild DECtalk.sln ^
             /m ^
-            /p:Configuration=Release ^
+            /p:Configuration="Release - ENGLISH_US" ^
+            /p:Platform=AMD64 ^
             /v:minimal
 
-      - name: Find generated files
-        if: always()
+      - name: Find DLLs and headers
         shell: powershell
         run: |
-          Write-Host "===== DLL FILES ====="
+          Write-Host "===== DLLs ====="
           Get-ChildItem -Recurse -Filter *.dll |
             Select-Object FullName, Length
 
           Write-Host ""
-          Write-Host "===== LIB FILES ====="
+          Write-Host "===== LIBs ====="
           Get-ChildItem -Recurse -Filter *.lib |
             Select-Object FullName, Length
 
           Write-Host ""
-          Write-Host "===== HEADER FILES ====="
+          Write-Host "===== HEADERS ====="
           Get-ChildItem -Recurse -Include *.h,*.hpp |
             Select-Object FullName
 
-      - name: Upload build artifacts
-        if: always()
+      - name: Package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact
+
+          Get-ChildItem -Recurse -Filter *.dll |
+            Copy-Item -Destination artifact -Force
+
+          Get-ChildItem -Recurse -Filter *.lib |
+            Copy-Item -Destination artifact -Force
+
+          Get-ChildItem -Recurse -Include *.h,*.hpp |
+            Copy-Item -Destination artifact -Force
+
+      - name: Upload DECtalk x64
         uses: actions/upload-artifact@v4
         with:
-          name: dectalk-build
-          path: |
-            **/*.dll
-            **/*.lib
-            **/*.h
-            **/*.hpp
-          if-no-files-found: warn
+          name: dectalk-x64
+          path: artifact
